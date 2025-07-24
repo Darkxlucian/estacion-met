@@ -13,12 +13,15 @@ DATA_FILE = "data.csv"
 KEY = bytes.fromhex('2B7E151628AED2A6ABF7158809CF4F3C')
 IV = b'1234567890123456'
 
+from Crypto.Util.Padding import unpad  # <--- IMPORTANTE
+
 def decrypt_aes(hex_data):
     try:
         encrypted_bytes = bytes.fromhex(hex_data)
         cipher = AES.new(KEY, AES.MODE_CBC, IV)
         decrypted = cipher.decrypt(encrypted_bytes)
-        decrypted = decrypted.rstrip(b'\x00').decode('utf-8', errors='ignore')
+        # Usar unpad para eliminar el relleno PKCS#7
+        decrypted = unpad(decrypted, AES.block_size).decode('utf-8')
         return decrypted
     except Exception as e:
         print("Desencriptación fallida:", e)
