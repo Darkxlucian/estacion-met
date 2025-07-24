@@ -1,28 +1,24 @@
 from flask import Flask, request, jsonify, render_template
-from Crypto.Cipher import AES
-import base64
-import binascii
-import csv
 from datetime import datetime
-import os
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import unpad
+import binascii
 
 app = Flask(__name__)
-DATA_FILE = "data.csv"
 
-# AES Configuration
-KEY = bytes.fromhex('2B7E151628AED2A6ABF7158809CF4F3C')
+# AES Configuración (clave de 16 bytes y IV de 16 bytes)
+KEY = bytes([0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6,
+             0xAB, 0xF7, 0x15, 0x88, 0x09, 0xCF, 0x4F])
 IV = b'1234567890123456'
 
-from Crypto.Util.Padding import unpad  # <--- IMPORTANTE
+data_store = []
 
-def decrypt_aes(hex_data):
+def decrypt_data(encrypted_hex):
     try:
-        encrypted_bytes = bytes.fromhex(hex_data)
+        encrypted_bytes = binascii.unhexlify(encrypted_hex)
         cipher = AES.new(KEY, AES.MODE_CBC, IV)
-        decrypted = cipher.decrypt(encrypted_bytes)
-        # Usar unpad para eliminar el relleno PKCS#7
-        decrypted = unpad(decrypted, AES.block_size).decode('utf-8')
-        return decrypted
+        decrypted = unpad(cipher.decrypt(encrypted_bytes), AES.block_size)
+        return decrypted.decode('utf-8')
     except Exception as e:
         print("Desencriptación fallida:", e)
         return None
@@ -34,24 +30,17 @@ def index():
 @app.route('/post', methods=['POST'])
 def post_data():
     content = request.get_json()
-    hex_data = content.get("data", "")
-    decrypted = decrypt_aes(hex_data)
+    encrypted = content.get('data')
+    decrypted = decrypt_data(encrypted)
     if decrypted:
-        with open(DATA_FILE, 'a') as f:
-            writer = csv.writer(f)
-            writer.writerow([decrypted, datetime.utcnow().isoformat()])
-    return jsonify({"status": "ok"})
+        data_store.append({
+            "raw": encrypted,
+            "data": decrypted,
+            "timestamp": datetime.utcnow().isoformat()
+        })
+        return jsonify({"status": "ok"})
+    return jsonify({"status": "error", "message": "decryption failed"})
 
 @app.route('/data')
 def get_data():
-    if not os.path.exists(DATA_FILE):
-        return jsonify([])
-    result = []
-    with open(DATA_FILE, 'r') as f:
-        reader = csv.reader(f)
-        for row in reader:
-            result.append({"data": row[0], "timestamp": row[1]})
-    return jsonify(result)
-
-if __name__ == '__main__':
-    app.run(debug=True)
+    return jsonify(data_store)
