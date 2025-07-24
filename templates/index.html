@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Estación Meteorológica</title>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: Arial; background: #f4f4f4; text-align: center; padding: 20px; }
+        .card { display: inline-block; background: white; margin: 10px; padding: 20px; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); width: 200px; }
+        .icon { font-size: 40px; }
+    </style>
+</head>
+<body>
+    <h1>Datos de Estación Meteorológica</h1>
+    <div id="cards"></div>
+    <canvas id="chart" width="800" height="400"></canvas>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        async function fetchData() {
+            const res = await fetch('/data');
+            const json = await res.json();
+            const cards = document.getElementById('cards');
+            cards.innerHTML = '';
+
+            let labels = [];
+            let temp = [], hum = [], uv = [], viento = [];
+
+            json.slice(-20).forEach(row => {
+                try {
+                    const obj = JSON.parse(row.data);
+                    labels.push(new Date(row.timestamp).toLocaleTimeString());
+                    temp.push(obj.temp);
+                    hum.push(obj.hum);
+                    uv.push(obj.uv);
+                    viento.push(obj.viento);
+
+                    const card = document.createElement('div');
+                    card.className = 'card';
+                    card.innerHTML = `
+                        <div class="icon">🌡️</div>
+                        <h3>${obj.temp} °C</h3>
+                        <p>Humedad: ${obj.hum}%<br>UV: ${obj.uv}<br>Viento: ${obj.viento} m/s</p>`;
+                    cards.appendChild(card);
+                } catch (e) {
+                    console.log("Error parseando", e);
+                }
+            });
+
+            if (window.myChart) window.myChart.destroy();
+            const ctx = document.getElementById('chart').getContext('2d');
+            window.myChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [
+                        { label: 'Temperatura (°C)', data: temp, borderColor: 'red', fill: false },
+                        { label: 'Humedad (%)', data: hum, borderColor: 'blue', fill: false },
+                        { label: 'UV', data: uv, borderColor: 'purple', fill: false },
+                        { label: 'Viento (m/s)', data: viento, borderColor: 'green', fill: false }
+                    ]
+                },
+                options: { responsive: true }
+            });
+        }
+
+        fetchData();
+        setInterval(fetchData, 5000);
+    </script>
+</body>
+</html>
